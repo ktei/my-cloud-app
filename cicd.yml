@@ -3,16 +3,13 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: "CICD - Serverless application"
 
 Parameters: 
-  RepoName:
-    Type: String
-    Description: "The GitHub repository name for this application"
   ApplicationName:
     Type: String
     Description: "The name of the application we're about to deploy using this CICD"
     Default: "my-cloud-app"
   Branch:
     Type: String
-    Description: "Choose a specific branch from which we pull source code from the GitHub repository. By default, the branch depends on the Envrionment (ticklelabs -> develop, prod -> master)"
+    Description: "Choose a specific branch from which we pull source code from the GitHub repository. By default, the branch is mater."
     Default: "master"
   OAuthToken:
     Type: String
@@ -44,17 +41,9 @@ Resources:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-          - Resource:
-              Fn::Sub: arn:aws:s3:::${ArtifactBucket}/*
-            Effect: Allow
-            Action:
-            - s3:GetObject
-            - s3:PutObject
-            - s3:GetObjectVersion
           - Resource: "*"
             Effect: Allow
-            Action:
-            - ssm:GetParameters
+            Action: "s3:*"
 
   CodeBuildProject:
     Type: "AWS::CodeBuild::Project"
@@ -161,8 +150,8 @@ Resources:
             Version: 1
             Provider: GitHub
           Configuration:
-            Owner: ticklesource
-            Repo: !Ref RepoName
+            Owner: ktei
+            Repo: my-cloud-app
             Branch: !Ref Branch
             OAuthToken: !Ref OAuthToken
           OutputArtifacts:
