@@ -16,9 +16,6 @@ Parameters:
     Description: "CodeBuild needs this to download source code from GitHub"
 
 Resources:
-  ArtifactBucket:
-    Type: "AWS::S3::Bucket"
-
   CodeBuildServiceRole:
     Type: "AWS::IAM::Role"
     Properties:
@@ -50,7 +47,7 @@ Resources:
     Properties:
       Name: !Ref ApplicationName
       Artifacts:
-        Location: !Ref ArtifactBucket
+        Location: jiangren-artifacts
         Type: S3
       Source:
         Location: !Sub https://github.com/ktei/my-cloud-app.git
@@ -59,10 +56,6 @@ Resources:
         ComputeType: BUILD_GENERAL1_LARGE
         Image: aws/codebuild/eb-nodejs-6.10.0-amazonlinux-64:4.0.0
         Type: LINUX_CONTAINER
-        EnvironmentVariables:
-        - Name: BUILD_OUTPUT_BUCKET
-          Value:
-            Ref: ArtifactBucket
       ServiceRole: !Ref CodeBuildServiceRole
 
   CFNPipelinePolicy:
@@ -139,7 +132,7 @@ Resources:
       RoleArn: !GetAtt [ CodePipelineServiceRole, Arn ]
       ArtifactStore:
         Type: S3
-        Location: !Ref ArtifactBucket
+        Location: jiangren-artifacts
       Stages:
       - Name: Source
         Actions:
