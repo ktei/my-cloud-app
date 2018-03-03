@@ -1,12 +1,19 @@
 version: 0.1
 
 phases:
+  pre_build:
+    commands:
+      - echo "Installing dependencies - `pwd`"
+      - npm install
+      - echo "dependencies install completed `date`"
+
   build:
     commands:
       - echo "Starting build `date` in `pwd`"
       # This is where you put your build commands
-      - npm install
       - npm run build
+      - rm -rf node_modules
+      - npm install --production
       - aws s3 sync ./dist s3://jiangren-serve-static-files/my-cloud-app --grants read=uri=http://acs.amazonaws.com/groups/global/AllUsers --storage-class REDUCED_REDUNDANCY
       - aws cloudformation package --template-file serverless.yml --s3-bucket jiangren-artifacts --output-template-file cfn-template.yml
   post_build:
