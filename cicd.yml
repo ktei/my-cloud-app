@@ -1,0 +1,221 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "CICD - Serverless - {{APPLICATION_NAME}}"
+
+Parameters: 
+  RepoName:
+    Type: String
+    Description: "The GitHub repository name for this application"
+  ApplicationName:
+    Type: String
+    Description: "The name of the application we're about to deploy using this CICD"
+    Default: "my-cloud-app"
+  Branch:
+    Type: String
+    Description: "Choose a specific branch from which we pull source code from the GitHub repository. By default, the branch depends on the Envrionment (ticklelabs -> develop, prod -> master)"
+    Default: "master"
+  OAuthToken:
+    Type: String
+    Description: "CodeBuild needs this to download source code from GitHub"
+
+Resources:
+  ArtifactBucket:
+    Type: "AWS::S3::Bucket"
+
+  CodeBuildServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codebuild.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Policies:
+      - PolicyName: CodeBuildAccess
+        PolicyDocument:
+          Statement:
+          - Resource: "*"
+            Effect: Allow
+            Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          - Resource:
+              Fn::Sub: arn:aws:s3:::${ArtifactBucket}/*
+            Effect: Allow
+            Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:GetObjectVersion
+          - Resource: "*"
+            Effect: Allow
+            Action:
+            - ssm:GetParameters
+
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Ref ApplicationName
+      Artifacts:
+        Location: !Ref ArtifactBucket
+        Type: S3
+      Source:
+        Location: !Sub https://github.com/ktei/my-cloud-app.git
+        Type: GITHUB
+      Environment:
+        ComputeType: BUILD_GENERAL1_LARGE
+        Image: aws/codebuild/eb-nodejs-6.10.0-amazonlinux-64:4.0.0
+        Type: LINUX_CONTAINER
+        EnvironmentVariables:
+        - Name: BUILD_OUTPUT_BUCKET
+          Value:
+            Ref: ArtifactBucket
+      ServiceRole: !Ref CodeBuildServiceRole
+
+  CFNPipelinePolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Path: "/"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          Resource: "*"
+          Effect: Allow
+          Action:
+          - cloudformation:CreateStack
+          - cloudformation:DescribeStacks
+          - cloudformation:DeleteStack
+          - cloudformation:UpdateStack
+          - cloudformation:CreateChangeSet
+          - cloudformation:ExecuteChangeSet
+          - cloudformation:DeleteChangeSet
+          - cloudformation:DescribeChangeSet
+          - cloudformation:SetStackPolicy
+          - cloudformation:SetStackPolicy
+          - cloudformation:ValidateTemplate
+          - codebuild:StartBuild
+          - codebuild:BatchGetBuilds
+
+  CloudFormationExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - cloudformation.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AdministratorAccess
+      
+  CodePipelineServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AWSCodeCommitFullAccess
+      - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      - !Ref CFNPipelinePolicy
+      Policies:
+      - PolicyName: CodePipelineAccess
+        PolicyDocument:
+          Statement:
+          - Resource: "*"
+            Effect: Allow
+            Action:
+            - iam:PassRole
+            - lambda:InvokeFunction
+            - lambda:ListFunctions
+            - lambda:InvokeAsyc
+
+  Pipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Ref ApplicationName
+      RoleArn: !GetAtt [ CodePipelineServiceRole, Arn ]
+      ArtifactStore:
+        Type: S3
+        Location: !Ref ArtifactBucket
+      Stages:
+      - Name: Source
+        Actions:
+        - Name: Source
+          ActionTypeId:
+            Category: Source
+            Owner: ThirdParty
+            Version: 1
+            Provider: GitHub
+          Configuration:
+            Owner: ticklesource
+            Repo: !Ref RepoName
+            Branch: !Ref Branch
+            OAuthToken: !Ref OAuthToken
+          OutputArtifacts:
+          - Name: Source
+      - Name: Build
+        Actions:
+        - Name: Build
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Version: 1
+            Provider: CodeBuild
+          Configuration:
+            ProjectName:
+              Ref: CodeBuildProject
+          InputArtifacts:
+          - Name: Source
+          OutputArtifacts:
+          - Name: BuildOutput
+      - Name: Deploy
+        Actions:
+        - Name: CreateChangeSet
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          Configuration:
+            ActionMode: CHANGE_SET_REPLACE
+            RoleArn:
+              Fn::GetAtt:
+              - CloudFormationExecutionRole
+              - Arn
+            StackName: !Sub "app-${ApplicationName}"
+            ChangeSetName: !Sub "app-${ApplicationName}-ChangeSet"
+            TemplatePath: BuildOutput::cfn-template.yml
+            Capabilities: CAPABILITY_IAM
+          InputArtifacts:
+          - Name: BuildOutput
+        - Name: ExecuteChangeSet
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          Configuration:
+            ActionMode: CHANGE_SET_EXECUTE
+            RoleArn:
+              Fn::GetAtt:
+              - CloudFormationExecutionRole
+              - Arn
+            StackName: !Sub "app-${ApplicationName}"
+            ChangeSetName: !Sub "app-${ApplicationName}-ChangeSet"
+          OutputArtifacts:
+          - Name: ExecutedChangeSet
+          RunOrder: 2
