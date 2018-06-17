@@ -8,8 +8,8 @@ import Routes from './Routes';
 
 import './styles/app.css';
 
-axios.defaults.baseURL = 'http://lms1210.azurewebsites.net';
-axios.defaults.headers.common.Authorization = 'Bearer Wfe1AqDVLmLwsLHEp491J_e-COUrwLo4a3tn4O4b-xm1jGpyUD4Uc-U3Ea0VkK6amMacgKU6NHRssNJLUUvB1Am42P5Fy6pjDSAgxTn3ufkzL2ELl9asV0vcWwHDTofa_h02-xUlaX_FZhFfZ4p51tPHBV8RBLvxnJypuKCnFNmmmsz_6SwtZV3_VT2NKJfn_qHztrpfNLEWfOPdKOVf18tlC-GoQU-3v9ihjCkhdsA';
+axios.defaults.baseURL = 'https://lms1210.azurewebsites.net';
+axios.defaults.headers.common.Authorization = 'Bearer Izolnwc6N7CCLXLREWrgWkZAHGoUl7ntKFg2CwHR871_9LWwt9622-pGVO6npzeygHa5K1R71svMaGT7MvHDsUflbCQbnfa5H5kYL2gnmNQdhZvojIXbcg61uvuD9uVoTHjwavgBhOMV2uxGmsZFiCURMBSx75TdtpY2OL5h7L2kLOureacDHiVe2oTAdUKNeCY94voG_GgshtGf3pWDQKmj19AXOMDOSWeO5zDXiy0';
 
 const App = () => {
   return (
